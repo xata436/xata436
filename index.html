@@ -100,23 +100,23 @@
         const services = [
             {
                 id: 'internet',
-                name: 'Интернет (роутер)',
+                name: 'Интернет (ДАПЛ)',
                 url: 'http://xata436.crazedns.ru',
-                description: 'Панель входа в роутер Keenetic. Доступен, если загружается страница входа.',
+                description: 'Наличие интернет-соединения ДАТАПЛАНЕТ в серверной',
                 checkType: 'http'
             },
             {
                 id: 'proxy',
                 name: 'Прокси (М9)',
                 url: 'http://xata436.ru:7721/',
-                description: 'HTTP-прокси сервер на порту 7721.',
+                description: 'Прокси-сервер, который располагается в М9',
                 checkType: 'http'
             },
             {
                 id: 'win-server',
                 name: 'Windows-сервер',
                 url: 'http://xata436.ru:63389/',
-                description: 'RDP-сервер (порт 63389). Проверяется доступность порта.',
+                description: 'Доступность Windows-сервера',
                 checkType: 'tcp',
                 alwaysAvailable: true
             },
@@ -124,21 +124,21 @@
                 id: 'ubuntu-server',
                 name: 'Ubuntu-сервер',
                 url: 'http://xata436.ru:53389/',
-                description: 'RDP-сервер (порт 53389). Проверяется доступность порта.',
+                description: 'Доступность Linux-сервера,
                 checkType: 'tcp'
             },
             {
                 id: 'gitlab',
                 name: 'GitLab',
                 url: 'https://git.xata436.ru',
-                description: 'Веб-интерфейс GitLab.',
+                description: 'Доступность сайта GitLab xata436',
                 checkType: 'http'
             },
             {
                 id: 'website',
                 name: 'Сайт',
                 url: 'https://xata436.ru',
-                description: 'Основной веб-сайт.',
+                description: 'Доступность основного веб-сайта',
                 checkType: 'http'
             }
         ];
