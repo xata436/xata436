@@ -2,7 +2,230 @@
 <html lang="ru" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"><!DOCTYPE html>
+<html lang="ru" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Status Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: #e0e0e0; padding-top: 20px; }
+        .status-card { background-color: #1e1e1e; border: 1px solid #333; margin-bottom: 20px; }
+        .status-indicator {
+            width: 15px; height: 15px; border-radius: 50%; display: inline-block; margin-right: 10px;
+        }
+        .status-up { background-color: #198754; box-shadow: 0 0 10px #198754; }
+        .status-down { background-color: #dc3545; box-shadow: 0 0 10px #dc3545; }
+        .status-loading { background-color: #ffc107; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 class="text-center mb-4">Мониторинг Систем (Secure Mode)</h2>
+
+    <!-- Блок IP -->
+    <div class="card status-card">
+        <div class="card-header">Информация о клиенте</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="card-title">Ваш IP</h5>
+                    <p class="card-text fs-4" id="user-ip"><span class="spinner-border spinner-border-sm"></span></p>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="card-title">Локация</h5>
+                    <p class="card-text fs-4" id="user-location"><span class="spinner-border spinner-border-sm"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Блок Статусов -->
+    <div class="card status-card">
+        <div class="card-header">Доступность Сервисов</div>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item bg-dark text-white d-flex justify-content-between">
+                <span><span class="status-indicator status-loading" id="ind-internet"></span>Интернет (Keenetic)</span>
+                <span class="badge bg-secondary" id="badge-internet">...</span>
+            </li>
+            <li class="list-group-item bg-dark text-white d-flex justify-content-between">
+                <span><span class="status-indicator status-loading" id="ind-proxy"></span>Прокси (М9)</span>
+                <span class="badge bg-secondary" id="badge-proxy">...</span>
+            </li>
+            <li class="list-group-item bg-dark text-white d-flex justify-content-between">
+                <span><span class="status-indicator status-loading" id="ind-win"></span>Windows-сервер</span>
+                <span class="badge bg-secondary" id="badge-win">...</span>
+            </li>
+            <li class="list-group-item bg-dark text-white d-flex justify-content-between">
+                <span><span class="status-indicator status-loading" id="ind-ubuntu"></span>Ubuntu-сервер</span>
+                <span class="badge bg-secondary" id="badge-ubuntu">...</span>
+            </li>
+            <li class="list-group-item bg-dark text-white d-flex justify-content-between">
+                <span><span class="status-indicator status-loading" id="ind-gitlab"></span>GitLab</span>
+                <span class="badge bg-secondary" id="badge-gitlab">...</span>
+            </li>
+            <li class="list-group-item bg-dark text-white d-flex justify-content-between">
+                <span><span class="status-indicator status-loading" id="ind-site"></span>Сайт</span>
+                <span class="badge bg-secondary" id="badge-site">...</span>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="text-center mt-3">
+        <button class="btn btn-primary" onclick="checkAllServices()">Обновить статусы</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // URL конфигурация
+    const CONFIG = {
+        internet: 'http://xata436.crazedns.ru',
+        proxy: 'http://xata436.ru:7721/',
+        win: 'http://xata436.ru:63389/',
+        ubuntu: 'http://xata436.ru:53389/',
+        gitlab: 'https://git.xata436.ru',
+        site: 'https://xata436.ru'
+    };
+
+    // Получение IP
+    fetch('https://ipapi.co/json/')
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('user-ip').innerText = data.ip;
+            document.getElementById('user-location').innerText = `${data.city}, ${data.country_name}`;
+        })
+        .catch(() => {
+            document.getElementById('user-ip').innerText = 'Не определен';
+        });
+
+    // Функция проверки через Прокси (для HTTP ресурсов)
+    // Позволяет читать контент (body, status)
+    async function checkViaProxy(targetUrl) {
+        try {
+            // Используем api.allorigins.win для проксирования
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&disableCache=true`;
+            const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+            const data = await response.json();
+            
+            if (!data.status || !data.status.http_code) return { ok: false, body: '' };
+
+            return {
+                ok: true, // Сам запрос прошел
+                httpCode: data.status.http_code,
+                body: data.contents || ''
+            };
+        } catch (e) {
+            console.warn('Proxy fail:', targetUrl, e);
+            return { ok: false, body: '' };
+        }
+    }
+
+    // Функция проверки для HTTPS (напрямую)
+    async function checkDirectHttps(url) {
+        try {
+            await fetch(url, { mode: 'no-cors', signal: AbortSignal.timeout(5000) });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function updateUi(key, isUp) {
+        const ind = document.getElementById(`ind-${key}`);
+        const badge = document.getElementById(`badge-${key}`);
+        ind.className = `status-indicator ${isUp ? 'status-up' : 'status-down'}`;
+        badge.className = `badge ${isUp ? 'bg-success' : 'bg-danger'}`;
+        badge.innerText = isUp ? 'Работает' : 'Недоступно';
+    }
+
+    async function checkAllServices() {
+        ['internet', 'proxy', 'win', 'ubuntu', 'gitlab', 'site'].forEach(k => {
+            document.getElementById(`ind-${k}`).className = 'status-indicator status-loading';
+            document.getElementById(`badge-${k}`).className = 'badge bg-secondary';
+            document.getElementById(`badge-${k}`).innerText = 'Checking...';
+        });
+
+        // 1. Прямые проверки для HTTPS
+        const [gitlabUp, siteUp] = await Promise.all([
+            checkDirectHttps(CONFIG.gitlab),
+            checkDirectHttps(CONFIG.site)
+        ]);
+
+        // 2. Проверки через прокси для HTTP
+        const [internetRes, proxyRes, winRes, ubuntuRawRes] = await Promise.all([
+            checkViaProxy(CONFIG.internet),
+            checkViaProxy(CONFIG.proxy),
+            checkViaProxy(CONFIG.win),
+            checkViaProxy(CONFIG.ubuntu)
+        ]);
+
+        // --- ЛОГИКА ПРОВЕРКИ ---
+
+        // Интернет (Keenetic): xata436.crazedns.ru
+        // если в noscript ошибка 503 или title = Error 503 -> не работает
+        let isInternetUp = false;
+        if (internetRes.ok) {
+            const bodyLower = internetRes.body.toLowerCase();
+            if (bodyLower.includes('error 503') || bodyLower.includes('503 service temporarily unavailable')) {
+                isInternetUp = false;
+            } else {
+                // Если Keenetic логин панель, она обычно отдается с 200 OK
+                isInternetUp = true;
+            }
+        }
+
+        // Прокси (М9): xata436.ru:7721
+        // Если открывается окно авторизации ИЛИ текст в Body равен "Вход запрещен" 
+        // ИЛИ пустой head/body -> Работает
+        let isProxyUp = false;
+        if (proxyRes.ok) {
+            const body = proxyRes.body.trim();
+            // Проверка на "Вход запрещен" (с учетом кодировки прокси может быть нюанс, но ищем текст)
+            if (proxyRes.httpCode === 401 || // 401 Unauthorized (окно авторизации)
+                body === '' || // Пустое тело
+                body.includes('Вход запрещен') ||
+                body.includes('Вход запрещён')) {
+                isProxyUp = true;
+            } else {
+                // Если вернулось что-то другое, но запрос прошел - скорее всего тоже работает
+                isProxyUp = true;
+            }
+        }
+
+        // Windows сервер (RDP http): xata436.ru:63389
+        // Если прокси смог достучаться (код 200, 404, 401), значит порт открыт
+        let isWinUp = winRes.ok;
+
+        // Ubuntu сервер (RDP http): xata436.ru:53389
+        let isUbuntuRawUp = ubuntuRawRes.ok;
+
+        // Логика зависимостей:
+        // если GitLab И Сайт НЕ работают ТО Ubuntu-сервер НЕ работает.
+        let isUbuntuFinalUp = isUbuntuRawUp;
+        if (!gitlabUp && !siteUp) {
+            isUbuntuFinalUp = false;
+        }
+
+        // Обновление UI
+        updateUi('internet', isInternetUp);
+        updateUi('proxy', isProxyUp);
+        updateUi('win', isWinUp);
+        updateUi('ubuntu', isUbuntuFinalUp);
+        updateUi('gitlab', gitlabUp);
+        updateUi('site', siteUp);
+    }
+
+    // Автозапуск
+    checkAllServices();
+
+</script>
+</body>
+</html>
     <title>Service Status Monitor</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
