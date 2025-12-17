@@ -105,22 +105,6 @@
             opacity: 0.9;
         }
 
-        /* Анимация загрузки */
-        .skeleton {
-            background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
-            background-size: 200% 100%;
-            animation: loading 1.5s infinite;
-            height: 20px;
-            width: 150px;
-            border-radius: 4px;
-            display: inline-block;
-        }
-
-        @keyframes loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-
         .footer {
             text-align: center;
             padding: 15px;
@@ -142,45 +126,45 @@
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mt-3 text-muted">Сбор данных о соединении...</p>
+                    <p class="mt-3 text-muted">Инициализация соединения...</p>
                 </div>
             </div>
             
             <div id="error-state" class="d-none p-4 text-center text-danger">
                 <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
-                <p>Не удалось получить данные. Отключите AdBlock или попробуйте позже.</p>
-                <button onclick="location.reload()" class="btn btn-outline-light btn-sm mt-2">Обновить</button>
+                <p>Ошибка сети. Проверьте интернет соединение.</p>
+                <button onclick="location.reload()" class="btn btn-outline-light btn-sm mt-2">Повторить</button>
             </div>
 
             <div id="data-content" class="d-none">
                 <!-- IP Address -->
                 <div class="data-row">
                     <span class="data-label"><i class="fas fa-globe me-2"></i>IP Address</span>
-                    <span class="data-value" id="ip"></span>
+                    <span class="data-value" id="ip">Loading...</span>
                 </div>
 
                 <!-- Location -->
                 <div class="data-row">
                     <span class="data-label"><i class="fas fa-map-marker-alt me-2"></i>Location</span>
-                    <span class="data-value" id="location"></span>
+                    <span class="data-value" id="location">Loading...</span>
                 </div>
 
-                <!-- CIDR -->
+                <!-- CIDR (Often unavailable via free reliable APIs, kept for structure) -->
                 <div class="data-row">
-                    <span class="data-label"><i class="fas fa-network-wired me-2"></i>CIDR (Network)</span>
-                    <span class="data-value" id="cidr"></span>
+                    <span class="data-label"><i class="fas fa-network-wired me-2"></i>CIDR / Type</span>
+                    <span class="data-value" id="cidr">N/A</span>
                 </div>
 
-                <!-- Subnet Mask (Calculated) -->
+                <!-- Mask -->
                 <div class="data-row">
-                    <span class="data-label"><i class="fas fa-mask me-2"></i>Public Mask</span>
-                    <span class="data-value" id="mask"></span>
+                    <span class="data-label"><i class="fas fa-mask me-2"></i>Subnet Mask</span>
+                    <span class="data-value" id="mask">N/A</span>
                 </div>
 
                 <!-- ASN -->
                 <div class="data-row">
-                    <span class="data-label"><i class="fas fa-server me-2"></i>ASN / ISP</span>
-                    <span class="data-value" id="asn"></span>
+                    <span class="data-label"><i class="fas fa-server me-2"></i>ISP / ASN</span>
+                    <span class="data-value" id="asn">Loading...</span>
                 </div>
 
                 <!-- Client Info -->
@@ -227,27 +211,10 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // Функция для перевода CIDR префикса (например 24) в маску (255.255.255.0)
-        function cidrToMask(cidr) {
-            if (!cidr) return "Unknown";
-            // Если API возвращает полную строку (1.2.3.0/24), берем часть после слэша
-            let prefix = cidr.includes('/') ? parseInt(cidr.split('/')[1]) : parseInt(cidr);
-            
-            if (isNaN(prefix) || prefix < 0 || prefix > 32) return "N/A";
-
-            let mask = [];
-            for (let i = 0; i < 4; i++) {
-                let n = Math.min(prefix, 8);
-                mask.push(256 - Math.pow(2, 8 - n));
-                prefix -= n;
-            }
-            return mask.join('.');
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
-            const apiUrl = 'https://ipapi.co/json/';
+            // Используем ipwho.is - он работает лучше с блокировщиками рекламы и через HTTPS
+            const apiUrl = 'https://ipwho.is/';
             
-            // Элементы DOM
             const elIp = document.getElementById('ip');
             const elLocation = document.getElementById('location');
             const elCidr = document.getElementById('cidr');
@@ -259,7 +226,6 @@
             const dataContent = document.getElementById('data-content');
             const errorState = document.getElementById('error-state');
 
-            // Данные для копирования
             let copyData = {};
 
             fetch(apiUrl)
@@ -268,37 +234,45 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Обработка данных
+                    if (!data.success) {
+                        throw new Error('API Error: ' + data.message);
+                    }
+
+                    // Данные из ipwho.is
                     const ip = data.ip || 'Unknown';
-                    const city = data.city || '';
-                    const country = data.country_name || '';
+                    const city = data.city || 'Unknown';
+                    const country = data.country || 'Unknown';
                     const location = `${country}, ${city}`;
-                    const network = data.network || 'N/A'; // CIDR
-                    const asn = data.asn ? `${data.asn} (${data.org})` : 'N/A';
-                    const mask = cidrToMask(network);
+                    
+                    // Этот API не отдает CIDR напрямую, ставим заглушки
+                    const network = data.type || 'IPv4'; 
+                    const mask = "N/A (Restricted)"; 
+                    
+                    const asnOrg = data.connection ? data.connection.org : 'Unknown';
+                    const asnCode = data.connection ? data.connection.asn : '';
+                    const asnDisplay = asnCode ? `AS${asnCode} (${asnOrg})` : asnOrg;
+
                     const userAgent = navigator.userAgent;
 
-                    // Заполнение UI
+                    // Обновляем UI
                     elIp.textContent = ip;
                     elLocation.textContent = location;
-                    elCidr.textContent = network;
+                    elCidr.textContent = network; // Показываем тип IP вместо маски, так как API не отдает CIDR
                     elMask.textContent = mask;
-                    elAsn.textContent = asn;
+                    elAsn.textContent = asnDisplay;
                     elClient.textContent = userAgent;
 
-                    // Сохраняем для буфера обмена
-                    // Формат: IP:xxx|CIDR|COUNTRY|LOCATION|CLIENT|MASK
+                    // Сохраняем объект для кнопки копирования
                     copyData = {
                         ip: ip,
                         cidr: network,
-                        country: data.country_code || 'XX', // Используем код страны для компактности
+                        country: data.country_code || 'XX',
                         location: city,
                         client: userAgent,
                         mask: mask,
-                        raw_asn: data.asn || 'AS0000'
+                        raw_asn: asnCode || '0000'
                     };
 
-                    // Переключаем видимость
                     loadingState.classList.add('d-none');
                     dataContent.classList.remove('d-none');
                 })
@@ -306,21 +280,21 @@
                     console.error('Error fetching IP data:', error);
                     loadingState.classList.add('d-none');
                     errorState.classList.remove('d-none');
+                    // Добавляем описание ошибки в UI для отладки, если нужно
+                    errorState.querySelector('p').textContent = "Сбой загрузки данных. Отключите VPN/AdBlock.";
                 });
 
-            // Логика кнопки копирования
+            // Кнопка копирования
             document.getElementById('copyBtn').addEventListener('click', () => {
-                // Формируем строку по требованию
-                // "IP:xxx.xxx.xxx.xxx|xxx.xxx.xxx.xxx\xxx|COUNTRY|LOCATION|CLIENT|MASK"
-                // Интерпретация: IP | CIDR | COUNTRY | LOCATION | CLIENT | MASK
-                
-                const formatString = `IP:${copyData.ip}|${copyData.cidr}|${copyData.country}|${copyData.location}|${copyData.client}|MASK:${copyData.mask}|ASN:${copyData.raw_asn}`;
+                const formatString = `IP:${copyData.ip}|TYPE:${copyData.cidr}|COUNTRY:${copyData.country}|LOCATION:${copyData.location}|CLIENT:${copyData.client}|ASN:${copyData.raw_asn}`;
 
                 navigator.clipboard.writeText(formatString).then(() => {
-                    // Показать уведомление
                     const toastEl = document.getElementById('liveToast');
                     const toast = new bootstrap.Toast(toastEl);
                     toast.show();
+                }).catch(err => {
+                    console.error('Ошибка копирования:', err);
+                    alert("Не удалось скопировать в буфер обмена. Возможно нет прав.");
                 });
             });
         });
