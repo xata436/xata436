@@ -1,303 +1,390 @@
+<!-- XATA436 DIAGNOSTICS TOOL -->
 <!DOCTYPE html>
-<html lang="ru" data-bs-theme="dark">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XATA436 | System Check</title>
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome для иконок -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <title>XATA436 | NET_DIAG</title>
     <style>
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+        /* --- CORE STYLES --- */
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #050505;
+            --panel-bg: #0A0A0A;
+            --neon-green: #6BEC68;
+            --text-color: #CCCCCC;
+            --border-color: #333;
+            --error-color: #ff3333;
         }
 
-        .main-container {
-            flex: 1;
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0;
+            padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            min-height: 100vh;
         }
 
-        .info-card {
-            background-color: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            max-width: 600px;
+        /* --- CONTAINER --- */
+        .diag-wrapper {
             width: 100%;
-            overflow: hidden;
-        }
-
-        .card-header {
-            background: linear-gradient(45deg, #0d6efd, #0dcaf0);
-            color: white;
+            max-width: 600px;
             padding: 20px;
-            text-align: center;
-            font-weight: bold;
-            letter-spacing: 1px;
         }
 
-        .data-row {
-            padding: 12px 20px;
-            border-bottom: 1px solid #333;
+        .terminal-window {
+            background: var(--panel-bg);
+            border: 1px solid var(--neon-green);
+            box-shadow: 0 0 20px rgba(107, 236, 104, 0.05);
+            position: relative;
+        }
+
+        /* Декор в углах (уголки) */
+        .terminal-window::before, .terminal-window::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border: 1px solid var(--neon-green);
+            transition: 0.3s;
+        }
+        .terminal-window::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .terminal-window::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+        /* --- HEADER --- */
+        .term-header {
+            background: rgba(107, 236, 104, 0.1);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .term-title {
+            color: var(--neon-green);
+            font-weight: bold;
+        }
+
+        .term-controls span {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #333;
+            margin-left: 5px;
+        }
+
+        /* --- CONTENT --- */
+        .term-body {
+            padding: 20px;
+        }
+
+        /* Loading State */
+        .loading-text {
+            color: var(--neon-green);
+            font-size: 1.1rem;
+            text-align: center;
+            padding: 30px 0;
+        }
+        .blink-cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1em;
+            background: var(--neon-green);
+            animation: blink 1s infinite;
+            vertical-align: bottom;
+        }
+
+        /* Error State */
+        .error-msg {
+            color: var(--error-color);
+            text-align: center;
+            border: 1px dashed var(--error-color);
+            padding: 15px;
+            display: none;
+        }
+
+        /* Data Grid */
+        .data-list {
+            display: none; /* Скрыто по умолчанию */
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
             flex-wrap: wrap;
         }
+        .data-item:last-child { border-bottom: none; }
 
-        .data-row:last-child {
-            border-bottom: none;
+        .key {
+            color: #666;
+            min-width: 140px;
         }
+        /*
+        .key::after { content: '............'; opacity: 0.2; margin-left: 5px; letter-spacing: 2px;}
+        */
 
-        .data-label {
-            color: #adb5bd;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .data-value {
+        .value {
             color: #fff;
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold;
             text-align: right;
+            flex: 1;
             word-break: break-all;
         }
+        .value.highlight { color: var(--neon-green); }
 
-        .btn-action {
-            width: 100%;
-            margin-bottom: 10px;
+        /* --- BUTTONS --- */
+        .actions {
+            margin-top: 25px;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 15px;
+            display: none; /* Скрыто пока грузится */
+        }
+
+        .btn-cli {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: #888;
             padding: 12px;
-            font-weight: 600;
-            border-radius: 8px;
-            transition: all 0.3s;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: 0.2s;
+        }
+        
+        .btn-cli:hover {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+            background: rgba(107, 236, 104, 0.05);
         }
 
-        .btn-copy {
-            background-color: #2c2c2c;
-            border: 1px solid #444;
-            color: #fff;
+        .btn-primary {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+        }
+        .btn-primary:hover {
+            background: var(--neon-green);
+            color: #000;
         }
 
-        .btn-copy:hover {
-            background-color: #3a3a3a;
-            border-color: #666;
-        }
-
-        .btn-telegram {
-            background-color: #24A1DE; /* Telegram Color */
-            border: none;
-            color: white;
-        }
-
-        .btn-telegram:hover {
-            background-color: #1f8ubc;
-            opacity: 0.9;
-        }
-
-        .footer {
+        /* --- FOOTER --- */
+        .term-footer {
             text-align: center;
-            padding: 15px;
-            font-size: 0.8rem;
-            color: #666;
+            font-size: 0.7rem;
+            color: #444;
+            margin-top: 15px;
+        }
+
+        /* --- TOAST (Уведомление) --- */
+        .toast-box {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #000;
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+            padding: 15px 25px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: 0.3s;
+            z-index: 1000;
+            box-shadow: 0 0 10px rgba(107, 236, 104, 0.2);
+        }
+        .toast-box.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @keyframes blink { 50% { opacity: 0; } }
+
+        @media (max-width: 500px) {
+            .data-item { flex-direction: column; }
+            .value { text-align: left; margin-top: 5px; }
+            .key::after { display: none; }
+            .actions { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
-    <div class="main-container">
-        <div class="info-card">
-            <div class="card-header">
-                <i class="fas fa-shield-alt me-2"></i> XATA436 DIAGNOSTICS
+<div class="diag-wrapper">
+    <div class="terminal-window">
+        <!-- Header -->
+        <div class="term-header">
+            <div class="term-title">./diag_tool.sh</div>
+            <!--
+            <div class="term-controls">
+                <span style="background:#ff5f56"></span>
+                <span style="background:#ffbd2e"></span>
+                <span style="background:#27c93f"></span>
             </div>
+        -->
+        </div>
 
-            <div id="loading-state">
-                <div class="p-4 text-center">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-3 text-muted">Инициализация соединения...</p>
-                </div>
-            </div>
+        <!-- Body -->
+        <div class="term-body">
             
-            <div id="error-state" class="d-none p-4 text-center text-danger">
-                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
-                <p>Ошибка сети. Проверьте интернет соединение.</p>
-                <button onclick="location.reload()" class="btn btn-outline-light btn-sm mt-2">Повторить</button>
+            <!-- Loading -->
+            <div id="loading-state" class="loading-text">
+                > СОЕДИНЕНИЕ СО СПУТНИКОМ...<span class="blink-cursor"></span>
             </div>
 
-            <div id="data-content" class="d-none">
-                <!-- IP Address -->
-                <div class="data-row">
-                    <span class="data-label"><i class="fas fa-globe me-2"></i>IP Address</span>
-                    <span class="data-value" id="ip">Loading...</span>
-                </div>
-
-                <!-- Location -->
-                <div class="data-row">
-                    <span class="data-label"><i class="fas fa-map-marker-alt me-2"></i>Location</span>
-                    <span class="data-value" id="location">Loading...</span>
-                </div>
-
-                <!-- CIDR (Often unavailable via free reliable APIs, kept for structure) -->
-                <div class="data-row">
-                    <span class="data-label"><i class="fas fa-network-wired me-2"></i>CIDR / Type</span>
-                    <span class="data-value" id="cidr">N/A</span>
-                </div>
-
-                <!-- Mask -->
-                <div class="data-row">
-                    <span class="data-label"><i class="fas fa-mask me-2"></i>Subnet Mask</span>
-                    <span class="data-value" id="mask">N/A</span>
-                </div>
-
-                <!-- ASN -->
-                <div class="data-row">
-                    <span class="data-label"><i class="fas fa-server me-2"></i>ISP / ASN</span>
-                    <span class="data-value" id="asn">Loading...</span>
-                </div>
-
-                <!-- Client Info -->
-                <div class="data-row">
-                    <span class="data-label"><i class="fas fa-laptop me-2"></i>Client Device</span>
-                    <span class="data-value" id="client" style="font-size: 0.8rem;"></span>
-                </div>
-
-                <div class="p-3">
-                    <div class="row g-2">
-                        <div class="col-12 col-md-8">
-                            <button class="btn btn-action btn-copy" id="copyBtn">
-                                <i class="fas fa-copy me-2"></i> Копировать инфо
-                            </button>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <a href="http://t.me/xata436" target="_blank" class="btn btn-action btn-telegram d-flex align-items-center justify-content-center text-decoration-none">
-                                <i class="fab fa-telegram-plane me-2"></i> Telegram
-                            </a>
-                        </div>
-                    </div>
-                </div>
+            <!-- Error -->
+            <div id="error-state" class="error-msg">
+                [ОШИБКА] СОЕДИНЕНИЕ НЕ УСТАНОВЛЕНО.<br>ПРОВЕРЬТЕ НАСТРОЙКИ ФАЕРВОЛА И АНТИВИРУСА.
+                <button onclick="location.reload()" class="btn-cli" style="margin-top:10px; width:auto; display:inline-block;">RETRY</button>
             </div>
+
+            <!-- Data List -->
+            <ul id="data-content" class="data-list">
+                <li class="data-item">
+                    <span class="key">IPV4_ADDRESS</span>
+                    <span class="value highlight" id="ip">ПОДГОТОВКА...</span>
+                </li>
+                <li class="data-item">
+                    <span class="key">GEO_LOCATION</span>
+                    <span class="value" id="location">НЕ ОПРЕДЕЛЕНО</span>
+                </li>
+                <li class="data-item">
+                    <span class="key">CONN_TYPE</span>
+                    <span class="value" id="cidr">IPV4</span>
+                </li>
+                <li class="data-item">
+                    <span class="key">SUBNET_MASK</span>
+                    <span class="value" id="mask">255.255.255.0</span>
+                </li>
+                <li class="data-item">
+                    <span class="key">ISP_NODE</span>
+                    <span class="value" id="asn">НЕ ОПРЕДЕЛЕНО</span>
+                </li>
+                <li class="data-item">
+                    <span class="key">USER_AGENT</span>
+                    <span class="value" id="client" style="font-size:0.8rem; color:#888;"></span>
+                </li>
+            </ul>
+
+            <!-- Buttons -->
+            <div id="action-buttons" class="actions">
+                <button id="copyBtn" class="btn-cli btn-primary">
+                    [ СКОПИРОВАТЬ ДАННЫЕ ]
+                </button>
+                <a href="https://t.me/xata436" target="_blank" class="btn-cli" style="text-align:center; text-decoration:none;">
+                    TELEGRAM
+                </a>
+            </div>
+
         </div>
     </div>
-
-    <div class="footer">
-        &copy; 2025 xata436 Support Team. All rights reserved.
+    
+    <div class="term-footer">
+        SESSION ID: <span id="sess-id">8437</span> // XATA436 - ТЕХНИЧЕСКАЯ ПОДДЕРЖКА
     </div>
+</div>
 
-    <!-- Toast for notification -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="liveToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body">
-                    <i class="fas fa-check-circle me-2"></i> Данные скопированы!
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-    </div>
+<!-- Custom Notification -->
+<div id="customToast" class="toast-box">
+    > СКОПИРОВАНО В БУФЕР ОБМЕНА
+</div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Generates random Session ID
+        document.getElementById('sess-id').innerText = Math.floor(Math.random() * 9000) + 1000;
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Используем ipwho.is - он работает лучше с блокировщиками рекламы и через HTTPS
-            const apiUrl = 'https://ipwho.is/';
-            
-            const elIp = document.getElementById('ip');
-            const elLocation = document.getElementById('location');
-            const elCidr = document.getElementById('cidr');
-            const elMask = document.getElementById('mask');
-            const elAsn = document.getElementById('asn');
-            const elClient = document.getElementById('client');
-            
-            const loadingState = document.getElementById('loading-state');
-            const dataContent = document.getElementById('data-content');
-            const errorState = document.getElementById('error-state');
+        const apiUrl = 'https://ipwho.is/';
+        
+        // Elements
+        const elIp = document.getElementById('ip');
+        const elLocation = document.getElementById('location');
+        const elCidr = document.getElementById('cidr');
+        const elMask = document.getElementById('mask');
+        const elAsn = document.getElementById('asn');
+        const elClient = document.getElementById('client');
+        
+        const loading = document.getElementById('loading-state');
+        const dataList = document.getElementById('data-content');
+        const btns = document.getElementById('action-buttons');
+        const errorDiv = document.getElementById('error-state');
 
-            let copyData = {};
+        let copyData = {};
 
+        // Fake loading delay for "coolness" (500ms)
+        setTimeout(() => {
             fetch(apiUrl)
-                .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    return response.json();
-                })
-                .then(data => {
-                    if (!data.success) {
-                        throw new Error('API Error: ' + data.message);
-                    }
+            .then(res => {
+                if(!res.ok) throw new Error('Net Error');
+                return res.json();
+            })
+            .then(data => {
+                if(!data.success) throw new Error(data.message);
 
-                    // Данные из ipwho.is
-                    const ip = data.ip || 'Unknown';
-                    const city = data.city || 'Unknown';
-                    const country = data.country || 'Unknown';
-                    const location = `${country}, ${city}`;
-                    
-                    // Этот API не отдает CIDR напрямую, ставим заглушки
-                    const network = data.type || 'IPv4'; 
-                    const mask = "N/A (Restricted)"; 
-                    
-                    const asnOrg = data.connection ? data.connection.org : 'Unknown';
-                    const asnCode = data.connection ? data.connection.asn : '';
-                    const asnDisplay = asnCode ? `AS${asnCode} (${asnOrg})` : asnOrg;
+                // Parsing
+                const ip = data.ip || 'UNKNOWN';
+                const loc = `${data.country}, ${data.city}`;
+                const type = data.type || 'IPv4';
+                // Mocking mask since API doesn't provide it
+                const mask = "255.255.255.X"; 
+                
+                const asn = data.connection ? 
+                            `AS${data.connection.asn} (${data.connection.org})` : 
+                            'HIDDEN';
 
-                    const userAgent = navigator.userAgent;
+                const ua = navigator.userAgent;
 
-                    // Обновляем UI
-                    elIp.textContent = ip;
-                    elLocation.textContent = location;
-                    elCidr.textContent = network; // Показываем тип IP вместо маски, так как API не отдает CIDR
-                    elMask.textContent = mask;
-                    elAsn.textContent = asnDisplay;
-                    elClient.textContent = userAgent;
+                // Update UI
+                elIp.innerText = ip;
+                elLocation.innerText = loc.toUpperCase();
+                elCidr.innerText = type.toUpperCase();
+                elMask.innerText = mask;
+                elAsn.innerText = asn.toUpperCase();
+                elClient.innerText = ua;
 
-                    // Сохраняем объект для кнопки копирования
-                    copyData = {
-                        ip: ip,
-                        cidr: network,
-                        country: data.country_code || 'XX',
-                        location: city,
-                        client: userAgent,
-                        mask: mask,
-                        raw_asn: asnCode || '0000'
-                    };
+                // Prepare Copy Object
+                copyData = {
+                    ip: ip,
+                    loc: loc,
+                    asn: data.connection?.asn || '0000',
+                    ua: ua
+                };
 
-                    loadingState.classList.add('d-none');
-                    dataContent.classList.remove('d-none');
-                })
-                .catch(error => {
-                    console.error('Error fetching IP data:', error);
-                    loadingState.classList.add('d-none');
-                    errorState.classList.remove('d-none');
-                    // Добавляем описание ошибки в UI для отладки, если нужно
-                    errorState.querySelector('p').textContent = "Сбой загрузки данных. Отключите VPN/AdBlock.";
-                });
+                // Show Content
+                loading.style.display = 'none';
+                dataList.style.display = 'block';
+                btns.style.display = 'grid';
+            })
+            .catch(err => {
+                console.error(err);
+                loading.style.display = 'none';
+                errorDiv.style.display = 'block';
+            });
+        }, 800);
 
-            // Кнопка копирования
-            document.getElementById('copyBtn').addEventListener('click', () => {
-                const formatString = `IP:${copyData.ip}|TYPE:${copyData.cidr}|COUNTRY:${copyData.country}|LOCATION:${copyData.location}|CLIENT:${copyData.client}|ASN:${copyData.raw_asn}`;
-
-                navigator.clipboard.writeText(formatString).then(() => {
-                    const toastEl = document.getElementById('liveToast');
-                    const toast = new bootstrap.Toast(toastEl);
-                    toast.show();
-                }).catch(err => {
-                    console.error('Ошибка копирования:', err);
-                    alert("Не удалось скопировать в буфер обмена. Возможно нет прав.");
-                });
+        // Copy Function
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const rawStr = `// XATA436 DIAGNOSTICS\nIP: ${copyData.ip}\nLOC: ${copyData.loc}\nASN: ${copyData.asn}\nUA: ${copyData.ua}`;
+            
+            navigator.clipboard.writeText(rawStr).then(() => {
+                const toast = document.getElementById('customToast');
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3000);
             });
         });
-    </script>
+    });
+</script>
+
 </body>
 </html>
